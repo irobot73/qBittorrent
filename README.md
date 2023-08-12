@@ -1,0 +1,2 @@
+# qBittorrent
+Scripts for qBittorrent
