@@ -1,8 +1,9 @@
 #
-# 08-12-2023 v1.0 - Initial version
-# 08-12-2023 v1.5 - Added handling of 'Category'
+# 08-12-2023 v01.00 - Initial version
+# 08-12-2023 v01.50 - Added handling of 'Category'
 #   Run external program on torrent finished = '/bin/bash /scripts/complete.sh %Z %C "%N" "%D" "%F" "%L" "%R"'
-# 08-12-2023 v1.7 - Added logic to delete old log files
+# 08-12-2023 v01.70 - Added logic to delete old log files
+# 08-12-2023 v01.75 - Added output during delete old log files
 #
 
 #!/bin/bash
@@ -34,12 +35,14 @@ set -x
 #
 #######
 
+# Logs
 DEST="/downloads/complete"
 LOG_DATE=$(date +"%Y-%m-%d")
 LOG_DIR='/scripts'
 LOG="${LOG_DIR}/${LOG_DATE}_log.txt"
 LOGS_TO_KEEP=7
 
+# Parse parameters passed in
 TOR_SIZE="${1}"
 NUM_FILES="${2}"
 TOR_NAME="${3}"
@@ -68,7 +71,7 @@ function SetupLog()
     fi
 
     # Remove old log files
-    find "${LOG_DIR}" -type f -iname '*.txt' -mtime +$LOGS_TO_KEEP -delete
+    find "${LOG_DIR}" -type f -iname '*.txt' -mtime +$LOGS_TO_KEEP -delete -printf "Deleled '%p'\n"
 }
 
 function CopyFiles()
