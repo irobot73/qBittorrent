@@ -1,4 +1,8 @@
-# 08-12-2023 - Initial version
+#
+# 08-12-2023 v1.0 - Initial version
+# 08-12-2023 v1.5 - Added handling of 'Category'
+#   Run external program on torrent finished = '/bin/bash /scripts/complete.sh %Z %C "%N" "%D" "%F" "%L" "%R"'
+#
 
 #!/bin/bash
 set -x
@@ -23,7 +27,12 @@ set -x
 #Tip: Encapsulate parameter with quotation marks to avoid text being cut off at whitespace (e.g., "%N")
 #
 
+#######
+#
 # Setup
+#
+#######
+
 DEST="/downloads/complete"
 TODAY=$(date +"%d-%m-%Y")
 LOG="/scripts/${TODAY}_log.txt"
@@ -33,7 +42,14 @@ NUM_FILES="${2}"
 TOR_NAME="${3}"
 SAVE_PATH="${4}"
 CONTENT_PATH="${5}"
-ROOT_PATH="${6}"
+CATEGORY="${6}"
+ROOT_PATH="${7}"
+
+###########
+#
+# Functions
+#
+###########
 
 function SetupLog()
 {
@@ -48,35 +64,61 @@ function SetupLog()
     fi
 }
 
+function CopyFiles()
+{
+    local DEST_PATH="$DEST"
+
+    # Add 'Category' to path, if passed in
+    if [[ "${CATEGORY}" != "" ]]; then
+        DEST_PATH="${DEST}/${CATEGORY}"
+    fi
+
+    # Make if it doesn't exist
+    if [[ ! -e "$DEST_PATH" ]]; then
+        mkdir "$DEST_PATH"
+        chown -R abc:abc "$DEST_PATH"
+        chmod -R 777 "$DEST_PATH"
+    fi
+
+    # Copy the folder/file(s)
+    if [[ "$ROOT_PATH" != "" ]]; then
+        cp -R "$ROOT_PATH" "$DEST_PATH"
+        FINAL_DEST="$DEST_PATH/${ROOT_PATH##*/}"
+    else
+        # This should be single file TORRENTS
+        cp "$CONTENT_PATH" "$DEST_PATH"
+        FINAL_DEST="$DEST_PATH/${CONTENT_PATH##*/}"
+    fi
+}
+
+#####
+#
+# Log
+#
+#####
+
 SetupLog
 exec 3>&1 1>>"$LOG" 2>&1
 trap "echo 'ERROR: An error occurred during execution, check log $LOG for details.' >&3" ERR
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
 
 echo "Torrent: '$TOR_NAME'" >&3
+echo "     Category    : $CATEGORY" >&3
 echo "     Files       : $NUM_FILES" >&3
 echo "     Size        : $TOR_SIZE" >&3
 echo "     Save Path   : $SAVE_PATH" >&3
 echo "     Content Path: $CONTENT_PATH" >&3
 echo "     Root Path   : $ROOT_PATH" >&3
 
+######
 #
 # Work
 #
-
-FINAL_DEST="";
+######
 
 # Copy files to COMPLETE folder
-if [[ "$ROOT_PATH" != "" ]]; then
-        cp -R "$ROOT_PATH" /downloads/complete
-        FINAL_DEST="/downloads/complete/${ROOT_PATH##*/}"
-    else
-        # This should be single file TORRENTS
-        cp "$CONTENT_PATH" /downloads/complete
-        FINAL_DEST="/downloads/complete/${CONTENT_PATH##*/}"
-    fi
+CopyFiles
+
 # Update permissions
 chown -R abc:abc "$FINAL_DEST"
 chmod -R 777 "$FINAL_DEST"
-
-
