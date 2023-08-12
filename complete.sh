@@ -2,6 +2,7 @@
 # 08-12-2023 v1.0 - Initial version
 # 08-12-2023 v1.5 - Added handling of 'Category'
 #   Run external program on torrent finished = '/bin/bash /scripts/complete.sh %Z %C "%N" "%D" "%F" "%L" "%R"'
+# 08-12-2023 v1.7 - Added logic to delete old log files
 #
 
 #!/bin/bash
@@ -34,8 +35,10 @@ set -x
 #######
 
 DEST="/downloads/complete"
-TODAY=$(date +"%d-%m-%Y")
-LOG="/scripts/${TODAY}_log.txt"
+LOG_DATE=$(date +"%Y-%m-%d")
+LOG_DIR='/scripts'
+LOG="${LOG_DIR}/${LOG_DATE}_log.txt"
+LOGS_TO_KEEP=7
 
 TOR_SIZE="${1}"
 NUM_FILES="${2}"
@@ -58,10 +61,14 @@ function SetupLog()
         touch "$LOG"
     fi
 
+    # Ensure log file is writable
     if [ ! -w "$LOG" ] ; then
         echo "Cannot write to '$LOG'" >&3
     exit 1
     fi
+
+    # Remove old log files
+    find "${LOG_DIR}" -type f -iname '*.txt' -mtime +$LOGS_TO_KEEP -delete
 }
 
 function CopyFiles()
@@ -98,10 +105,13 @@ function CopyFiles()
 #####
 
 SetupLog
+
+# The following will spit out all processes to the log
 exec 3>&1 1>>"$LOG" 2>&1
 trap "echo 'ERROR: An error occurred during execution, check log $LOG for details.' >&3" ERR
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
 
+# Write to log the variables passed in via the app
 echo "Torrent: '$TOR_NAME'" >&3
 echo "     Category    : $CATEGORY" >&3
 echo "     Files       : $NUM_FILES" >&3
