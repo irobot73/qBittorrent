@@ -1,11 +1,16 @@
 #
 # 08-12-2023 v01.00 - Initial version
 # 08-12-2023 v01.50 - Added handling of 'Category'
-#   Run external program on torrent finished = '/bin/bash /scripts/complete.sh %Z %C "%N" "%D" "%F" "%L" "%R"'
+#   Run external program on torrent finished:
+#       '/bin/bash /scripts/complete.sh %Z %C "%N" "%D" "%F" "%L" "%R"'
 # 08-12-2023 v01.70 - Added logic to delete old log files
 # 08-12-2023 v01.75 - Added output during delete old log files
 # 08-12-2023 v01.80 - Variables in log clean-up added
-# 08-12-2023 v01.82 - Removed unnecessary redirects and cleaed-up LOG logic
+# 08-13-2023 v01.82 - Removed unnecessary redirects and cleaed-up LOG logic
+# 08-13-2023 v02.00 - Use and parse FLAGS to handle null/empty parameters
+#   (order of parameter won't matter)
+#   Run external program on torrent finished:
+#       '/bin/bash /scripts/complete.sh -n "%N" -l "%L" -f "%F" -r "%R" -c "%D" -c %C -z %Z -i "%I" -j "%J" -k "%K"'
 #
 
 #!/bin/bash
@@ -31,11 +36,11 @@ set -x
 #Tip: Encapsulate parameter with quotation marks to avoid text being cut off at whitespace (e.g., "%N")
 #
 
-#######
+###########
 #
-# Setup
+# Variables
 #
-#######
+###########
 
 # Logs
 DEST="/downloads/complete"
@@ -45,14 +50,65 @@ LOG_EXT='.log'
 LOG_FILE="$LOG_DIR/$LOG_DATE$LOG_EXT"
 LOGS_TO_KEEP=7
 
-# Parse parameters passed in
-TOR_SIZE="${1}"
-NUM_FILES="${2}"
-TOR_NAME="${3}"
-SAVE_PATH="${4}"
-CONTENT_PATH="${5}"
-CATEGORY="${6}"
-ROOT_PATH="${7}"
+# All possible parameters that can be passed from qBittorrent
+TOR_NAME=""
+CATEGORY=""
+TAGS=""
+CONTENT_PATH=""
+ROOT_PATH=""
+SAVE_PATH=""
+NUM_FILES=0
+TOR_SIZE=0
+CURR_TRACKER=""
+HASH_V1=""
+HASH_V2=""
+TORR_ID=0
+
+# Parse the flags/parameters that were passed from qBittorren
+while getopts ":n:l:g:f:r:d:c:z:t:i:j:k:" flag; do
+    case "${flag}" in
+        n)
+            TOR_NAME="$OPTARG"
+            ;;
+        l)
+            CATEGORY="$OPTARG"
+            ;;
+        g)
+            TAGS="$OPTARG"
+            ;;
+        f)
+            CONTENT_PATH="$OPTARG"
+            ;;
+        r)
+            ROOT_PATH="$OPTARG"
+            ;;
+        d)
+            SAVE_PATH="$OPTARG"
+            ;;
+        c)
+            NUM_FILES="$OPTARG"
+            ;;
+        z)
+            TOR_SIZE="$OPTARG"
+            ;;
+        t)
+            CURR_TRACKER="$OPTARG"
+            ;;
+        i)
+            HASH_V1="$OPTARG"
+            ;;
+        j)
+            HASH_V2="$OPTARG"
+            ;;
+        k)
+            TORR_ID="$OPTARG"
+            ;;
+        *)
+            echo "Usage: [script_file] [-f "%F"] [-d "%D"]..."
+            exit 1
+            ;;
+    esac
+done
 
 ###########
 #
@@ -104,27 +160,38 @@ function CopyFiles()
     fi
 }
 
-#####
+#######
 #
-# Log
+# Setup
 #
-#####
+#######
 
 SetupLog
+
+#########
+#
+# Logging
+#
+#########
 
 # The following will spit out all processes to the log
 exec 3>&1 1>>"$LOG_FILE" 2>&1
 trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3" ERR
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
 
-# Write to log the variables passed in via the app
+# Echo the variables passed in via the app
 echo "Torrent: '$TOR_NAME'"
 echo "     Category    : $CATEGORY"
-echo "     Files       : $NUM_FILES"
+echo "     Content Path: $CONTENT_PATH"
+echo "     Curr Tracker: $CURR_TRACKER"
+echo "     Identifier  : $TORR_ID"
+echo "     Info Hash v1: $HASH_V1"
+echo "     Info Hash v2: $HASH_V2"
+echo "     Number Files: $NUM_FILES"
+echo "     Root Path   : $ROOT_PATH"
 echo "     Size        : $TOR_SIZE"
 echo "     Save Path   : $SAVE_PATH"
-echo "     Content Path: $CONTENT_PATH"
-echo "     Root Path   : $ROOT_PATH"
+echo "     Tags        : $TAGS"
 
 ######
 #
