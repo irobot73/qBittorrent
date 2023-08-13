@@ -4,6 +4,8 @@
 #   Run external program on torrent finished = '/bin/bash /scripts/complete.sh %Z %C "%N" "%D" "%F" "%L" "%R"'
 # 08-12-2023 v01.70 - Added logic to delete old log files
 # 08-12-2023 v01.75 - Added output during delete old log files
+# 08-12-2023 v01.80 - Variables in log clean-up added
+# 08-12-2023 v01.82 - Removed unnecessary redirects and cleaed-up LOG logic
 #
 
 #!/bin/bash
@@ -39,7 +41,8 @@ set -x
 DEST="/downloads/complete"
 LOG_DATE=$(date +"%Y-%m-%d")
 LOG_DIR='/scripts'
-LOG="${LOG_DIR}/${LOG_DATE}_log.txt"
+LOG_EXT='.log'
+LOG_FILE="$LOG_DIR/$LOG_DATE$LOG_EXT"
 LOGS_TO_KEEP=7
 
 # Parse parameters passed in
@@ -60,18 +63,18 @@ ROOT_PATH="${7}"
 function SetupLog()
 {
     # Ensure log file exists
-    if [[ ! -e "$LOG" ]]; then
-        touch "$LOG"
+    if [[ ! -e "$LOG_FILE" ]]; then
+        touch "$LOG_FILE"
     fi
 
     # Ensure log file is writable
-    if [ ! -w "$LOG" ] ; then
-        echo "Cannot write to '$LOG'" >&3
+    if [ ! -w "$LOG_FILE" ] ; then
+        echo "ERROR:  Cannot write to '$LOG_FILE'"
     exit 1
     fi
 
     # Remove old log files
-    find "${LOG_DIR}" -type f -iname '*.txt' -mtime +$LOGS_TO_KEEP -delete -printf "Deleled '%p'\n"
+    find "${LOG_DIR}" -type f -iname '*$LOG_EXT' -mtime +$LOGS_TO_KEEP -delete -printf "Deleled '%p'\n"
 }
 
 function CopyFiles()
@@ -110,18 +113,18 @@ function CopyFiles()
 SetupLog
 
 # The following will spit out all processes to the log
-exec 3>&1 1>>"$LOG" 2>&1
-trap "echo 'ERROR: An error occurred during execution, check log $LOG for details.' >&3" ERR
+exec 3>&1 1>>"$LOG_FILE" 2>&1
+trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3" ERR
 trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
 
 # Write to log the variables passed in via the app
-echo "Torrent: '$TOR_NAME'" >&3
-echo "     Category    : $CATEGORY" >&3
-echo "     Files       : $NUM_FILES" >&3
-echo "     Size        : $TOR_SIZE" >&3
-echo "     Save Path   : $SAVE_PATH" >&3
-echo "     Content Path: $CONTENT_PATH" >&3
-echo "     Root Path   : $ROOT_PATH" >&3
+echo "Torrent: '$TOR_NAME'"
+echo "     Category    : $CATEGORY"
+echo "     Files       : $NUM_FILES"
+echo "     Size        : $TOR_SIZE"
+echo "     Save Path   : $SAVE_PATH"
+echo "     Content Path: $CONTENT_PATH"
+echo "     Root Path   : $ROOT_PATH"
 
 ######
 #
