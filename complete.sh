@@ -207,5 +207,4 @@ CopyFiles
 chown -R abc:abc "$FINAL_DEST"
 chmod -R 777 "$FINAL_DEST"
 
-echo 'Done.'
-echo ''
+echo -e 'Done.\n\n'
