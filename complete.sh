@@ -11,10 +11,13 @@
 #   (order of parameter won't matter)
 #   Run external program on torrent finished:
 #       '/bin/bash /scripts/complete.sh -n "%N" -l "%L" -f "%F" -r "%R" -c "%D" -c %C -z %Z -i "%I" -j "%J" -k "%K"'
+# 08-26-2023 v01.85 - Logging to functions & fixed purge logic
 #
 
 #!/bin/bash
-set -x
+app="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+#source "$app/functions.sh"
+#set -x
 
 #
 #Run external program on torrent finished
@@ -48,7 +51,7 @@ LOG_DATE=$(date +"%Y-%m-%d")
 LOG_DIR='/scripts'
 LOG_EXT='.log'
 LOG_FILE="$LOG_DIR/$LOG_DATE$LOG_EXT"
-LOGS_TO_KEEP=7
+LOG_DAYS_TO_KEEP=3
 
 # All possible parameters that can be passed from qBittorrent
 TOR_NAME=""
@@ -116,8 +119,11 @@ done
 #
 ###########
 
-function SetupLog()
+function PrepLogFile()
 {
+    # Remove old log files
+    find "$LOG_DIR" -type f -iname "*$LOG_EXT" -mtime +$LOG_DAYS_TO_KEEP -delete -print
+
     # Ensure log file exists
     if [[ ! -e "$LOG_FILE" ]]; then
         touch "$LOG_FILE"
@@ -128,9 +134,28 @@ function SetupLog()
         echo "ERROR:  Cannot write to '$LOG_FILE'"
     exit 1
     fi
+}
 
-    # Remove old log files
-    find "${LOG_DIR}" -type f -iname '*$LOG_EXT' -mtime +$LOGS_TO_KEEP -delete -printf "Deleled '%p'\n"
+function SetupLogging()
+{
+    # The following will spit out all processes to the log
+    exec 3>&1 1>>"$LOG_FILE" 2>&1
+    trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3" ERR
+    trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
+
+    # Echo the variables passed in via the app
+    echo "Torrent: '$TOR_NAME'"
+    echo "     Category    : $CATEGORY"
+    echo "     Content Path: $CONTENT_PATH"
+    echo "     Curr Tracker: $CURR_TRACKER"
+    echo "     Identifier  : $TORR_ID"
+    echo "     Info Hash v1: $HASH_V1"
+    echo "     Info Hash v2: $HASH_V2"
+    echo "     Number Files: $NUM_FILES"
+    echo "     Root Path   : $ROOT_PATH"
+    echo "     Size        : $TOR_SIZE"
+    echo "     Save Path   : $SAVE_PATH"
+    echo "     Tags        : $TAGS"
 }
 
 function CopyFiles()
@@ -160,38 +185,14 @@ function CopyFiles()
     fi
 }
 
-#######
-#
-# Setup
-#
-#######
-
-SetupLog
-
 #########
 #
 # Logging
 #
 #########
 
-# The following will spit out all processes to the log
-exec 3>&1 1>>"$LOG_FILE" 2>&1
-trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3" ERR
-trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
-
-# Echo the variables passed in via the app
-echo "Torrent: '$TOR_NAME'"
-echo "     Category    : $CATEGORY"
-echo "     Content Path: $CONTENT_PATH"
-echo "     Curr Tracker: $CURR_TRACKER"
-echo "     Identifier  : $TORR_ID"
-echo "     Info Hash v1: $HASH_V1"
-echo "     Info Hash v2: $HASH_V2"
-echo "     Number Files: $NUM_FILES"
-echo "     Root Path   : $ROOT_PATH"
-echo "     Size        : $TOR_SIZE"
-echo "     Save Path   : $SAVE_PATH"
-echo "     Tags        : $TAGS"
+PrepLogFile
+SetupLogging
 
 ######
 #
@@ -205,3 +206,6 @@ CopyFiles
 # Update permissions
 chown -R abc:abc "$FINAL_DEST"
 chmod -R 777 "$FINAL_DEST"
+
+echo 'Done.'
+echo ''
