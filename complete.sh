@@ -12,7 +12,8 @@
 #   Run external program on torrent finished:
 #       '/bin/bash /scripts/complete.sh -n "%N" -l "%L" -f "%F" -r "%R" -c "%D" -c %C -z %Z -i "%I" -j "%J" -k "%K"'
 # 08-26-2023 v01.85 - Logging to functions & fixed purge logic
-# 08-26-2023 v01.85 - Fixed & tested logic in 'RotateLogFiles'
+# 08-26-2023 v01.86 - Fixed & tested logic in 'RotateLogFiles'
+# 08-26-2023 v01.90 - Logic flow corrections
 #
 
 #!/bin/bash
@@ -120,6 +121,27 @@ done
 #
 ###########
 
+function PrepLogFile()
+{
+    # Ensure log file exists
+    if [[ ! -e "$LOG_FILE" ]]; then
+        touch "$LOG_FILE"
+    fi
+
+    # Ensure log file is writable
+    if [ ! -w "$LOG_FILE" ] ; then
+        exit 1
+    fi
+}
+
+function SetupLogging()
+{
+    # The following will spit out all processes to the log
+    exec 3>&1 1>>"$LOG_FILE" 2>&1
+    trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3" ERR
+    trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
+}
+
 function RotateLogFiles()
 {
     if [[ ! -z "$LOG_DAYS_TO_KEEP" ]]; then
@@ -132,28 +154,6 @@ function RotateLogFiles()
     else
         echo "INFO:  'LOG_DAYS_TO_KEEP' variable not set.  No clean-up performed."
     fi
-}
-
-function PrepLogFile()
-{
-    # Ensure log file exists
-    if [[ ! -e "$LOG_FILE" ]]; then
-        touch "$LOG_FILE"
-    fi
-
-    # Ensure log file is writable
-    if [ ! -w "$LOG_FILE" ] ; then
-        echo "ERROR:  Cannot write to '$LOG_FILE'"
-        exit 1
-    fi
-}
-
-function SetupLogging()
-{
-    # The following will spit out all processes to the log
-    exec 3>&1 1>>"$LOG_FILE" 2>&1
-    trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3" ERR
-    trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
 }
 
 function DebugToLog()
@@ -206,9 +206,11 @@ function CopyFiles()
 #
 #########
 
-RotateLogFiles
 PrepLogFile
 SetupLogging
+RotateLogFiles
+
+# (UN)Comment as desired
 DebugToLog
 
 ######
