@@ -12,6 +12,7 @@
 #   Run external program on torrent finished:
 #       '/bin/bash /scripts/complete.sh -n "%N" -l "%L" -f "%F" -r "%R" -c "%D" -c %C -z %Z -i "%I" -j "%J" -k "%K"'
 # 08-26-2023 v01.85 - Logging to functions & fixed purge logic
+# 08-26-2023 v01.85 - Fixed & tested logic in 'RotateLogFiles'
 #
 
 #!/bin/bash
@@ -51,7 +52,7 @@ LOG_DATE=$(date +"%Y-%m-%d")
 LOG_DIR='/scripts'
 LOG_EXT='.log'
 LOG_FILE="$LOG_DIR/$LOG_DATE$LOG_EXT"
-LOG_DAYS_TO_KEEP=3
+LOG_DAYS_TO_KEEP=3 # NOTE: It's technically N+1
 
 # All possible parameters that can be passed from qBittorrent
 TOR_NAME=""
@@ -119,11 +120,22 @@ done
 #
 ###########
 
+function RotateLogFiles()
+{
+    if [[ ! -z "$LOG_DAYS_TO_KEEP" ]]; then
+        if [[ "$LOG_DAYS_TO_KEEP" -gt "0" ]]; then
+            # Remove old log files
+            find "$LOG_DIR" -maxdepth 1 -daystart -type f -iname "*$LOG_EXT" -mtime +$LOG_DAYS_TO_KEEP -exec rm -v '{}' + 
+        else
+            echo "WARNING:  'LOG_DAYS_TO_KEEP' must be greater than 0 to perform any work."
+        fi
+    else
+        echo "INFO:  'LOG_DAYS_TO_KEEP' variable not set.  No clean-up performed."
+    fi
+}
+
 function PrepLogFile()
 {
-    # Remove old log files
-    find "$LOG_DIR" -type f -iname "*$LOG_EXT" -mtime +$LOG_DAYS_TO_KEEP -delete -print
-
     # Ensure log file exists
     if [[ ! -e "$LOG_FILE" ]]; then
         touch "$LOG_FILE"
@@ -132,7 +144,7 @@ function PrepLogFile()
     # Ensure log file is writable
     if [ ! -w "$LOG_FILE" ] ; then
         echo "ERROR:  Cannot write to '$LOG_FILE'"
-    exit 1
+        exit 1
     fi
 }
 
@@ -142,7 +154,10 @@ function SetupLogging()
     exec 3>&1 1>>"$LOG_FILE" 2>&1
     trap "echo 'ERROR: An error occurred during execution, check log $LOG_FILE for details.' >&3" ERR
     trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
+}
 
+function DebugToLog()
+{
     # Echo the variables passed in via the app
     echo "Torrent: '$TOR_NAME'"
     echo "     Category    : $CATEGORY"
@@ -191,8 +206,10 @@ function CopyFiles()
 #
 #########
 
+RotateLogFiles
 PrepLogFile
 SetupLogging
+DebugToLog
 
 ######
 #
