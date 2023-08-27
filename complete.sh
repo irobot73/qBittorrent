@@ -91,7 +91,7 @@ while getopts ":n:l:g:f:r:d:c:z:t:i:j:k:" flag; do
             TORR_ID="$OPTARG"
             ;;
         *)
-            echo "Usage: [script_file] [-f "%F"] [-d "%D"]..."
+            echo "Usage: [script_file] [-f \"%F\"] [-d \"%D\"]..."
             exit 1
             ;;
     esac
@@ -103,20 +103,7 @@ done
 #
 ###########
 
-function PrepLogFile
-{
-    # Ensure log file exists
-    if [[ ! -e "$LOG_FILE" ]]; then
-        touch "$LOG_FILE"
-    fi
-
-    # Ensure log file is writable
-    if [ ! -w "$LOG_FILE" ] ; then
-        exit 1
-    fi
-}
-
-function SetupLogging
+function PrepLogging
 {
     # The following will spit out all processes to the log
     exec 3>&1 1>>"$LOG_FILE" 2>&1
@@ -124,15 +111,54 @@ function SetupLogging
     trap '{ set +x; } 2>/dev/null; echo -n "[$(date -Is)]  "; set -x' DEBUG
 }
 
+function PrepFolders
+{
+    echo "Prepping folder '${1}'..."
+
+    # Make if it doesn't exist
+    if [[ ! -e "${1}" ]]; then
+        mkdir "${1}"
+        SetPerms "${1}"
+    # Else, verify it's actually a directory
+    elif [[ ! -d "${1}" ]]; then
+        echo "'$1' already exists but is not a directory."
+        exit 2
+    fi
+
+    echo "Folder prep complete."
+}
+
+function PrepLogFile
+{
+    echo "Prepping log file '$LOG_FILE'..."
+
+    # Ensure log file exists
+    if [[ ! -e "$LOG_FILE" ]]; then
+        touch "$LOG_FILE"
+        echo "Created '$LOG_FILE'."
+    fi
+
+    # Ensure log file is writable
+    if [ ! -w "$LOG_FILE" ] ; then
+        exit 1
+    fi
+
+    echo "Log file ready."
+}
+
 function PurgeLogFiles
 {
+    echo "Purging old log file(s)..."
+
     if [[ -z "$LOG_DAYS_TO_KEEP" ]]; then
         echo "INFO:  'LOG_DAYS_TO_KEEP' variable not set.  No clean-up performed."
     else
         if [[ "$LOG_DAYS_TO_KEEP" -gt "0" ]]; then
             # Remove old log files
-            # NOTE:  
-            find "$LOG_DIR" -maxdepth 1 -daystart -type f -iname "*$LOG_EXT" -mtime +$LOG_DAYS_TO_KEEP -exec rm -v '{}' + 
+            # NOTE:  Some instances may not work with the 'daystart' parameter
+            #find "$LOG_DIR" -maxdepth 1 -daystart -type f -iname "*$LOG_EXT" -mtime +$LOG_DAYS_TO_KEEP -exec rm -v '{}' + 
+            find "$LOG_DIR" -maxdepth 1 -type f -iname "*$LOG_EXT" -mtime +$LOG_DAYS_TO_KEEP -exec rm -v '{}' + 
+            echo "Purge complete."
         else
             echo "WARNING:  'LOG_DAYS_TO_KEEP' must be greater than 0 to perform any work."
         fi
@@ -158,6 +184,8 @@ function DebugToLog
 
 function CopyFiles
 {
+    echo "Copying torrent..."
+
     local DEST_PATH="$DEST"
 
     # Add 'Category' to path, if passed in
@@ -165,7 +193,7 @@ function CopyFiles
         DEST_PATH="${DEST}/${CATEGORY}"
     fi
 
-    FinalDestinationValidation "$DEST_PATH"
+    PrepFolders "$DEST_PATH"
 
     # Copy the folder/file(s)
     if [[ "$ROOT_PATH" != "" ]]; then
@@ -176,19 +204,8 @@ function CopyFiles
         cp "$CONTENT_PATH" "$DEST_PATH"
         FINAL_DEST="$DEST_PATH/${CONTENT_PATH##*/}"
     fi
-}
 
-fucntion FinalDestinationValidation
-{
-    # Make if it doesn't exist
-    if [[ ! -e "${1}" ]]; then
-        mkdir "${1}"
-        SetPerms "${1}"
-    # Else, verify it's actually a directory
-    elif [[ ! -d "${1}" ]]; then
-        echo "'$1' already exists but is not a directory."
-        exit 2
-    fi
+    echo "Copying complete."
 }
 
 function SetPerms
@@ -197,14 +214,15 @@ function SetPerms
     chmod -R 777 "${1}"
 }
 
-#########
+#######
 #
-# Logging
+# Setup
 #
-#########
+#######
 
+PrepLogging
+PrepFolders "$LOG_DIR"
 PrepLogFile
-SetupLogging
 PurgeLogFiles
 
 # (UN)Comment as desired
@@ -223,7 +241,6 @@ CopyFiles
 SetPerms "$FINAL_DEST"
 
 echo -e 'Done.\n\n'
-exit 0
 
 #
 # 08-12-2023 v01.00 - Initial version
@@ -242,4 +259,5 @@ exit 0
 # 08-26-2023 v01.86 - Fixed & tested logic in 'RotateLogFiles'
 # 08-26-2023 v01.90 - Logic flow corrections
 # 08-27-2023 v01.95 - Refactored & created 'FinalDestinationValidation' function
+# 08-27-2023 v01.96 - Refactored to 'PrepFolders' & better logging
 #
